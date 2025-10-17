@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Data Pasien | Persistent Firebase</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        /* CSS: Tampilan Canggih, Glassmorphism Ringan, dan Animasi */
+        :root {
+            --primary-color: #00796B; /* Teal/Biru-Hijau Fresh */
+            --secondary-color: #37474F; /* Abu-abu Tua Elegan */
+            --accent-color: #26C6DA; /* Cyan Terang */
+            --danger-color: #E53935; /* Merah untuk Indikator Sakit */
+            --success-color: #4CAF50; /* Hijau untuk Indikator Sehat */
+            --background-dark: #ECEFF1; /* Latar belakang sangat terang */
+            --card-background: rgba(255, 255, 255, 0.8); /* Glassmorphism ringan */
+            --glass-border: 1px solid rgba(255, 255, 255, 0.3);
+            --text-color: #212121;
+            --font-family: 'Poppins', sans-serif;
+            --box-shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+        body {
+            font-family: var(--font-family);
+            background: var(--background-dark);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            line-height: 1.6;
+            transition: all 0.5s ease;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; display: grid; gap: 20px; }
+
+        header {
+            grid-column: 1 / -1; padding: 25px; background-color: var(--card-background);
+            backdrop-filter: blur(5px); border-radius: 16px; box-shadow: var(--box-shadow-soft);
+            text-align: center;
+        }
+
+        h1 { color: var(--primary-color); margin: 0; font-weight: 700; }
+
+        .main-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        
+        .section-card {
+            background-color: var(--card-background); backdrop-filter: blur(5px); padding: 30px;
+            border-radius: 16px; box-shadow: var(--box-shadow-soft); border: var(--glass-border);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .section-card:hover { transform: translateY(-3px); box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15); }
+
+        h2 {
+            color: var(--secondary-color); font-weight: 600; border-bottom: 2px solid var(--background-dark);
+            padding-bottom: 15px; margin-bottom: 25px; display: flex; align-items: center;
+        }
+        h2 i { margin-right: 10px; color: var(--accent-color); }
+
+        .form-group { margin-bottom: 20px; }
+        input[type="text"], input[type="date"], select, button { transition: all 0.3s ease; }
+
+        input[type="text"], input[type="date"], select, #searchInput {
+            width: 100%; padding: 12px 15px; border: 1px solid #CFD8DC; border-radius: 8px;
+            box-sizing: border-box; background: #fdfefe;
+        }
+
+        input:focus, select:focus, #searchInput:focus {
+            border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(38, 198, 218, 0.2); outline: none;
+        }
+        
+        button {
+            background-color: var(--primary-color); color: white; padding: 12px 25px; border: none;
+            border-radius: 8px; cursor: pointer; font-weight: 600;
+        }
+
+        button:hover { background-color: #004D40; transform: translateY(-1px); }
+
+        .table-controls { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        
+        .table-controls input, .table-controls select { width: 100%; max-width: 250px; }
+
+        .table-controls div { flex-grow: 1; }
+        
+        .filter-group { display: flex; gap: 10px; align-items: center; max-width: 350px; }
+        .filter-group select { width: auto; min-width: 100px; }
+        
+        .data-table-container { overflow-x: auto; max-height: 500px; }
+
+        #dataPasienTable { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
+
+        #dataPasienTable th, #dataPasienTable td { padding: 15px; text-align: left; border: none; vertical-align: middle; }
+        #dataPasienTable thead th { background-color: var(--secondary-color); color: white; position: sticky; top: 0; z-index: 10; }
+        #dataPasienTable thead th:first-child { border-top-left-radius: 8px; }
+        #dataPasienTable thead th:last-child { border-top-right-radius: 8px; }
+        #dataPasienTable tbody tr {
+            background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+        }
+        #dataPasienTable tbody tr:hover { box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); }
+
+        .status-select {
+            padding: 8px 10px; border-radius: 6px; border: 1px solid #CFD8DC; background-color: #fdfefe;
+            cursor: pointer; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            appearance: none; -webkit-appearance: none; -moz-appearance: none;
+        }
+
+        .status-select option[value="Sakit"] { background-color: #FFCDD2; color: var(--danger-color); }
+        .status-select option[value="Sehat"] { background-color: #C8E6C9; color: var(--success-color); }
+        .status-select option[value="None"] { background-color: #F5F5F5; color: var(--secondary-color); }
+
+        .status-select.Sakit { background-color: var(--danger-color); color: white; }
+        .status-select.Sehat { background-color: var(--success-color); color: white; }
+        .status-select.None { background-color: #E0E0E0; color: var(--secondary-color); }
+        
+        .history-btn {
+            background-color: var(--accent-color); color: white; padding: 6px 10px; border-radius: 4px;
+            font-size: x-small; margin-left: 5px; cursor: pointer; display: inline-flex; align-items: center;
+        }
+        
+        .controls-and-charts {
+            grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); 
+            gap: 20px; margin-top: 20px;
+        }
+        .chart-container { height: 320px; }
+
+        .control-panel { margin-top: 15px; padding-top: 10px; border-top: 1px solid #CFD8DC; }
+        .control-panel button { width: 100%; margin-bottom: 10px; }
+        
+        .modal {
+            position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto;
+            background-color: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center;
+        }
+        .modal-content {
+            background-color: var(--card-background); margin: auto; padding: 30px; border: var(--glass-border);
+            width: 80%; max-width: 600px; border-radius: 12px; box-shadow: var(--box-shadow-soft);
+            animation: slideIn 0.3s ease-out; backdrop-filter: blur(10px);
+        }
+        .close-btn { color: var(--secondary-color); float: right; font-size: 28px; font-weight: bold; transition: color 0.3s; }
+        .close-btn:hover, .close-btn:focus { color: var(--danger-color); text-decoration: none; cursor: pointer; }
+        .history-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .history-item:last-child { border-bottom: none; }
+        
+        @media (max-width: 1200px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .controls-and-charts { grid-template-columns: 1fr; }
+            .table-controls { flex-direction: column; align-items: stretch; }
+            .table-controls input, .table-controls select, .filter-group { max-width: 100%; }
+            .table-controls button { width: 100%; min-width: auto; }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-hospital-alt"></i> Bank Data Pasien</h1>
+            <p style="color: var(--secondary-color);">Dashboard Administrasi Kesehatan Modern & Dinamis</p>
+        </header>
+
+        <div class="main-grid">
+            <div class="section-card">
+                <h2><i class="fas fa-edit"></i> Input Data Pasien</h2>
+                <form id="pasienForm">
+                    <div class="form-group">
+                        <label for="namaLengkap">Nama Lengkap</label>
+                        <input type="text" id="namaLengkap" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="nik">NIK (16 Digit)</label>
+                        <input type="text" id="nik" required pattern="\d{16}" title="NIK harus 16 digit angka">
+                    </div>
+                    <div class="form-group">
+                        <label for="jenisKelamin">Jenis Kelamin</label>
+                        <select id="jenisKelamin" required>
+                            <option value="">Pilih...</option>
+                            <option value="Laki-laki">Laki-laki</option>
+                            <option value="Perempuan">Perempuan</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tanggalLahir">Tanggal Lahir</label>
+                        <input type="date" id="tanggalLahir" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="tempatLahir">Tempat Lahir</label>
+                        <input type="text" id="tempatLahir" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="alamat">Alamat</label>
+                        <input type="text" id="alamat" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="statusKunjunganAwal">Status Kunjungan Awal (Bulan Ini)</label>
+                        <select id="statusKunjunganAwal" required>
+                            <option value="None">Belum Ditandai</option>
+                            <option value="Sakit">Sakit</option>
+                            <option value="Sehat">Sehat</option>
+                        </select>
+                    </div>
+                    <button type="submit"><i class="fas fa-plus-circle"></i> Tambah Pasien</button>
+                </form>
+                
+                <div class="control-panel">
+                    <h2><i class="fas fa-cog"></i> Kontrol Data</h2>
+                    <button onclick="clearStatusForMonth()" style="background-color: var(--secondary-color);">
+                        <i class="fas fa-eraser"></i> Hapus Status Kunjungan Bulan Ini
+                    </button>
+                    <p style="font-size: small; color: #757575; margin-top: 10px;">*Hapus Status hanya menghapus data kunjungan (Sakit/Sehat) di periode yang sedang difilter.</p>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h2><i class="fas fa-table"></i> Data Pasien</h2>
+                
+                <div class="table-controls">
+                    <div style="flex-grow: 1;">
+                        <input type="text" id="searchInput" placeholder="Cari Nama/NIK/Alamat..." onkeyup="filterTable()">
+                    </div>
+                    <div class="filter-group">
+                        <p style="margin: 0; white-space: nowrap; font-weight: 600;">Data Periode:</p>
+                        <select id="filterMonth" onchange="filterTable()"></select>
+                        <select id="filterYear" onchange="filterTable()"></select>
+                    </div>
+                    <button onclick="deleteSelectedPasien()" id="deleteSelectedBtn" style="background-color: var(--danger-color); padding: 10px 15px; min-width: 180px;">
+                        <i class="fas fa-trash-alt"></i> Hapus yang Dipilih
+                    </button>
+                </div>
+
+                <p style="margin-bottom: 20px; font-size: small;">
+                    🗓️ Anda melihat dan mengedit periode: <span id="currentFilterDate" style="font-weight: 600; color: var(--primary-color);"></span>
+                </p>
+
+                <div class="data-table-container">
+                    <table id="dataPasienTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px; text-align: center;"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)"></th>
+                                <th>Nama</th>
+                                <th>NIK</th>
+                                <th>JK</th>
+                                <th>Usia</th>
+                                <th>Kategori</th>
+                                <th>Alamat</th>
+                                <th>Status Kunjungan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataPasienBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls-and-charts">
+            <div class="section-card">
+                <h2><i class="fas fa-chart-pie"></i> Distribusi Gender</h2>
+                <div class="chart-container">
+                    <canvas id="jenisKelaminChart"></canvas>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h2><i class="fas fa-chart-bar"></i> Distribusi Usia</h2>
+                <div class="chart-container">
+                    <canvas id="usiaKategoriChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="section-card">
+                <h2><i class="fas fa-notes-medical"></i> Distribusi Kunjungan (<span id="chartFilterDate"></span>)</h2>
+                <div class="chart-container">
+                    <canvas id="kunjunganChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="historyModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2><i class="fas fa-history"></i> Riwayat Kunjungan Pasien</h2>
+            <h3 id="historyPasienName" style="color: var(--primary-color); margin-top: -10px; font-weight: 600;"></h3>
+            <div id="historyList" style="max-height: 300px; overflow-y: auto; padding-right: 10px;"></div>
+            <p id="noHistory" style="text-align: center; color: var(--secondary-color); display: none;">Tidak ada riwayat kunjungan tercatat.</p>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import fungsi modular dari Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+        import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+        
+        // ====================================================================
+        // === 1. KONFIGURASI FIREBASE ANDA (KUNCI YANG DIBERIKAN USER) ===
+        // ====================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyBttm1j4cKQn-TZgHZBxbFrmqx09hgFgUE",
+            authDomain: "bank-data-pasien-pkm-mdh.firebaseapp.com",
+            databaseURL: "https://bank-data-pasien-pkm-mdh-default-rtdb.asia-southeast1.firebasedatabase.app", // Ditambahkan: URL Database yang benar
+            projectId: "bank-data-pasien-pkm-mdh",
+            storageBucket: "bank-data-pasien-pkm-mdh.firebasestorage.app",
+            messagingSenderId: "835248495447",
+            appId: "1:835248495447:web:2ea210e25e817ff85d7c12",
+            measurementId: "G-CWX1KGNNRS"
+        };
+        
+        // Inisialisasi Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        // Node utama di Realtime Database. Sesuaikan jika Anda ingin path lain.
+        const pasienRef = ref(db, 'pasienData'); 
+        // ====================================================================
+
+        let pasienData = [];
+        let jenisKelaminChartInstance;
+        let usiaKategoriChartInstance;
+        let kunjunganChartInstance;
+        
+        let activeFilterMonth = new Date().getMonth() + 1;
+        let activeFilterYear = new Date().getFullYear();
+
+        function hitungUsia(dobString) {
+            const today = new Date();
+            const birthDate = new Date(dobString);
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            return age;
+        }
+
+        function getKategoriUsia(age) {
+            if (age >= 60) return 'Lansia (≥60)';
+            if (age >= 45) return 'Pra-Lansia (45-59)';
+            if (age >= 18) return 'Dewasa (18-44)';
+            return age >= 13 ? 'Remaja (13-17)' : 'Anak-anak (0-12)';
+        }
+        
+        function formatHistoryDate(dateKey) {
+            const match = dateKey.match(/(\d+)-(\d+)/);
+            if (!match) return dateKey;
+            const [, year, monthIndex] = match;
+            const date = new Date(year, monthIndex - 1, 1); 
+            return date.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+        }
+        
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'Sakit': return 'fas fa-procedures';
+                case 'Sehat': return 'fas fa-heartbeat';
+                default: return 'fas fa-flag';
+            }
+        }
+        
+        // ====================================================================
+        // === 2. FUNGSI FIREBASE: LOAD DATA (Modular Async) ===
+        // ====================================================================
+        async function loadData() {
+            try {
+                const snapshot = await get(pasienRef); // Menggunakan get() modular
+                if (snapshot.exists()) {
+                    const dataObject = snapshot.val();
+                    // Mengubah objek Firebase menjadi array (jika disimpan sebagai objek dengan key ID)
+                    // Atau hanya mengambil val() jika disimpan sebagai array. Kita gunakan Object.values() untuk robust.
+                    pasienData = Object.values(dataObject || {});
+                    // Pastikan ID adalah angka untuk fungsi filter/delete
+                    pasienData.forEach(p => p.id = parseInt(p.id)); 
+                } else {
+                    pasienData = [];
+                }
+            } catch (error) {
+                console.error("Error loading data from Firebase:", error);
+                // Menampilkan pesan error khusus (tanpa alert)
+                const header = document.querySelector('header');
+                if (header) {
+                     const errorMsg = document.createElement('p');
+                     errorMsg.textContent = "⚠️ Gagal memuat data dari Firebase! Cek koneksi internet dan aturan keamanan (Rules) database.";
+                     errorMsg.style.color = 'var(--danger-color)';
+                     errorMsg.style.fontWeight = 'bold';
+                     header.appendChild(errorMsg);
+                }
+                pasienData = []; 
+            }
+        }
+
+        // ====================================================================
+        // === 3. FUNGSI FIREBASE: SAVE DATA (Modular Async) ===
+        // ====================================================================
+        async function saveData() {
+            try {
+                // Konversi array pasienData menjadi objek dengan ID sebagai key untuk penyimpanan Realtime DB yang lebih efisien
+                const dataObjectToSave = pasienData.reduce((acc, pasien) => {
+                    acc[pasien.id] = pasien;
+                    return acc;
+                }, {});
+                
+                // set() menimpa seluruh data di node 'pasienData' dengan data terbaru.
+                await set(pasienRef, dataObjectToSave); 
+            } catch (error) {
+                console.error("Error saving data to Firebase:", error);
+                // Hanya log error, tidak perlu mengganggu pengguna saat save
+            }
+            
+            // Setelah save, perbarui tampilan
+            populateFilters(); 
+            filterTable(); 
+            renderCharts();
+        }
+
+        async function clearStatusForMonth() {
+            const currentFilterMonthYear = `${activeFilterYear}-${activeFilterMonth}`; 
+            
+            // Mengganti confirm() dengan modal atau logika kondisional yang menghindari konfirmasi browser
+            // Karena kita tidak bisa menggunakan window.confirm(), kita asumsikan user yakin untuk tujuan demo.
+            if (!confirm(`Yakin ingin MENGHAPUS status Kunjungan untuk SEMUA pasien di periode ${formatHistoryDate(currentFilterMonthYear)}? Tindakan ini tidak dapat dibatalkan.`)) {
+                 return;
+            }
+
+            let resetCount = 0;
+            pasienData = pasienData.map(pasien => {
+                if (pasien.history && pasien.history[currentFilterMonthYear]) {
+                    delete pasien.history[currentFilterMonthYear]; 
+                    resetCount++;
+                }
+                return pasien;
+            });
+
+            await saveData();
+            const message = `${resetCount} status Kunjungan berhasil dihapus di periode ${formatHistoryDate(currentFilterMonthYear)}.`;
+            console.log(message);
+            // Secara ideal, tampilkan pesan ini di UI, bukan di console.
+        }
+
+        function populateFilters() {
+            const monthSelect = document.getElementById('filterMonth');
+            const yearSelect = document.getElementById('filterYear');
+            
+            const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            
+            if (monthSelect.options.length === 0) {
+                months.forEach((name, index) => {
+                    monthSelect.add(new Option(name, index + 1));
+                });
+            }
+            
+            const START_YEAR = 2023; // Tahun mulai data
+            let END_YEAR = Math.max(new Date().getFullYear(), activeFilterYear, START_YEAR);
+            
+            yearSelect.innerHTML = '';
+            for (let year = END_YEAR; year >= START_YEAR; year--) {
+                yearSelect.add(new Option(year, year));
+            }
+            
+            monthSelect.value = activeFilterMonth;
+            yearSelect.value = activeFilterYear;
+        }
+        
+        function toggleSelectAll(checked) {
+            const checkboxes = document.querySelectorAll('.pasien-checkbox');
+            checkboxes.forEach(cb => { cb.checked = checked; });
+        }
+
+        async function deleteSelectedPasien() {
+            const checkboxes = document.querySelectorAll('.pasien-checkbox:checked');
+            if (checkboxes.length === 0) {
+                console.log("Pilih setidaknya satu pasien.");
+                return;
+            }
+
+            if (!confirm(`Yakin ingin menghapus ${checkboxes.length} pasien PERMANEN? Tindakan ini tidak dapat dibatalkan.`)) {
+                return;
+            }
+
+            const idsToDelete = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            const initialCount = pasienData.length;
+            pasienData = pasienData.filter(pasien => !idsToDelete.includes(pasien.id));
+            const deletedCount = initialCount - pasienData.length;
+
+            if (deletedCount > 0) {
+                document.getElementById('selectAllCheckbox').checked = false;
+                await saveData(); 
+                console.log(`${deletedCount} pasien berhasil dihapus PERMANEN.`);
+            } else {
+                 console.log("Gagal menghapus pasien.");
+            }
+        }
+
+        function filterTable() {
+            const tableBody = document.getElementById('dataPasienBody');
+            const searchVal = document.getElementById('searchInput').value.toLowerCase();
+            const filterMonth = parseInt(document.getElementById('filterMonth').value);
+            const filterYear = parseInt(document.getElementById('filterYear').value);
+            
+            activeFilterMonth = filterMonth;
+            activeFilterYear = filterYear;
+
+            const currentFilterDateSpan = document.getElementById('currentFilterDate');
+            currentFilterDateSpan.textContent = formatHistoryDate(`${filterYear}-${filterMonth}`);
+            document.getElementById('chartFilterDate').textContent = formatHistoryDate(`${filterYear}-${filterMonth}`);
+
+            tableBody.innerHTML = ''; 
+            document.getElementById('selectAllCheckbox').checked = false;
+
+            const currentFilterMonthYear = `${filterYear}-${filterMonth}`; 
+
+            // Sortir data berdasarkan nama sebelum filtering
+            pasienData.sort((a, b) => a.namaLengkap.localeCompare(b.namaLengkap));
+
+            pasienData.forEach(pasien => {
+                const searchText = `${pasien.namaLengkap} ${pasien.nik} ${pasien.alamat}`.toLowerCase();
+                if (searchVal && !searchText.includes(searchVal)) { return; }
+                
+                const currentStatus = pasien.history && pasien.history[currentFilterMonthYear] || 'None';
+                const riwayatIndicatorCount = pasien.history ? 
+                    Object.keys(pasien.history).filter(key => pasien.history[key] !== 'None').length : 0;
+
+                const row = tableBody.insertRow();
+                
+                const checkboxCell = row.insertCell();
+                checkboxCell.style.textAlign = 'center'; 
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'pasien-checkbox';
+                checkbox.value = pasien.id; 
+                checkboxCell.appendChild(checkbox);
+                
+                row.insertCell().textContent = pasien.namaLengkap;
+                row.insertCell().textContent = pasien.nik;
+                row.insertCell().textContent = pasien.jenisKelamin[0]; 
+                row.insertCell().textContent = pasien.usia;
+                row.insertCell().textContent = pasien.kategoriUsia.split(' ')[0]; 
+                row.insertCell().textContent = pasien.alamat;
+                
+                const indicatorCell = row.insertCell();
+                
+                const selectElement = document.createElement('select');
+                selectElement.className = `status-select ${currentStatus}`;
+                selectElement.id = `status-${pasien.id}`;
+                selectElement.onchange = async function(e) {
+                    // Update status tampilan di tempat sebelum save async untuk UX yang lebih baik
+                    e.target.className = `status-select ${e.target.value}`;
+                    await toggleKunjunganStatus(pasien.id, e.target.value);
+                };
+
+                const options = [
+                    { value: 'None', text: 'Belum Ditandai' },
+                    { value: 'Sakit', text: 'Sakit' },
+                    { value: 'Sehat', text: 'Sehat' }
+                ];
+
+                options.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.text;
+                    if (opt.value === currentStatus) { option.selected = true; }
+                    selectElement.appendChild(option);
+                });
+
+                indicatorCell.appendChild(selectElement);
+
+                if (riwayatIndicatorCount > 0) {
+                    const historyBtn = document.createElement('span');
+                    historyBtn.className = 'history-btn';
+                    historyBtn.innerHTML = `<i class="fas fa-history"></i> ${riwayatIndicatorCount}`;
+                    historyBtn.title = `Lihat Riwayat ${riwayatIndicatorCount} Status Kunjungan`;
+                    historyBtn.onclick = (e) => {
+                        e.stopPropagation(); 
+                        showHistoryModal(pasien);
+                    };
+                    indicatorCell.appendChild(historyBtn);
+                }
+            });
+            
+            if (tableBody.children.length === 0) {
+                 const row = tableBody.insertRow();
+                 const cell = row.insertCell();
+                 cell.colSpan = 8;
+                 cell.textContent = "Tidak ada data pasien yang ditemukan untuk filter ini.";
+                 cell.style.textAlign = 'center';
+                 cell.style.fontStyle = 'italic';
+                 cell.style.padding = '30px';
+            }
+        }
+
+        async function toggleKunjunganStatus(id, newStatus) {
+            const pasienIndex = pasienData.findIndex(p => p.id === id);
+            const historyKey = `${activeFilterYear}-${activeFilterMonth}`;
+            
+            if (pasienIndex !== -1) {
+                if (!pasienData[pasienIndex].history) pasienData[pasienIndex].history = {};
+
+                if (newStatus === 'None') {
+                    delete pasienData[pasienIndex].history[historyKey];
+                } else {
+                    pasienData[pasienIndex].history[historyKey] = newStatus;
+                }
+                
+                // Gunakan console.log sebagai pengganti alert untuk menghindari pop-up browser
+                console.log(`Status ${pasienData[pasienIndex].namaLengkap} di periode ${formatHistoryDate(historyKey)} diubah menjadi: ${newStatus}`);
+
+                await saveData();
+            }
+        }
+        
+        document.getElementById('pasienForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const tanggalLahir = document.getElementById('tanggalLahir').value;
+            const usia = hitungUsia(tanggalLahir);
+            const nik = document.getElementById('nik').value;
+            const initialStatus = document.getElementById('statusKunjunganAwal').value;
+
+            if (usia < 0) {
+                console.error("Input Gagal! Tanggal lahir tidak valid.");
+                return;
+            }
+
+            if (pasienData.some(p => p.nik === nik)) {
+                console.error("Input Gagal! NIK sudah terdaftar.");
+                return;
+            }
+            
+            // Menggunakan Date.now() sebagai ID yang unik
+            const uniqueId = Date.now();
+            
+            const today = new Date();
+            const currentMonthYear = `${today.getFullYear()}-${today.getMonth() + 1}`;
+            
+            const newPasien = {
+                id: uniqueId,
+                namaLengkap: document.getElementById('namaLengkap').value,
+                nik: nik,
+                jenisKelamin: document.getElementById('jenisKelamin').value,
+                alamat: document.getElementById('alamat').value,
+                tempatLahir: document.getElementById('tempatLahir').value,
+                tanggalLahir: tanggalLahir,
+                usia: usia,
+                kategoriUsia: getKategoriUsia(usia),
+                // Pastikan history memiliki ID pasien agar mudah diakses di DB
+                history: (initialStatus !== 'None' ? { [currentMonthYear]: initialStatus } : {}) 
+            };
+
+            pasienData.push(newPasien);
+            await saveData();
+            console.log("Pasien berhasil ditambahkan.");
+            this.reset();
+        });
+
+        function showHistoryModal(pasien) {
+            const modal = document.getElementById('historyModal');
+            const historyList = document.getElementById('historyList');
+            const noHistory = document.getElementById('noHistory');
+            document.getElementById('historyPasienName').textContent = `${pasien.namaLengkap}`;
+            historyList.innerHTML = '';
+            
+            const historyKeys = Object.keys(pasien.history || {})
+                                .filter(key => key.match(/\d{4}-\d+/) && pasien.history[key] !== 'None')
+                                .sort().reverse();
+            
+            if (historyKeys.length > 0) {
+                noHistory.style.display = 'none';
+                historyKeys.forEach(key => {
+                    const status = pasien.history[key];
+                    const icon = getStatusIcon(status);
+                    
+                    const item = document.createElement('div');
+                    item.className = 'history-item';
+                    const dateText = formatHistoryDate(key);
+                    
+                    item.innerHTML = `
+                        <span>${dateText}</span>
+                        <span style="color: ${status === 'Sakit' ? 'var(--danger-color)' : 'var(--success-color)'}; font-weight: 600;">
+                            <i class="${icon}"></i> ${status.toUpperCase()}
+                        </span>
+                    `;
+                    historyList.appendChild(item);
+                });
+            } else {
+                noHistory.style.display = 'block';
+            }
+            
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
+
+        document.onclick = function(event) {
+            const modal = document.getElementById('historyModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+        
+        function renderCharts() {
+            const allData = pasienData; 
+            const dataJK = summarizeJK(allData);
+            const dataUsia = summarizeUsia(allData);
+            const dataKunjungan = summarizeKunjungan(pasienData, activeFilterYear, activeFilterMonth);
+
+            drawJenisKelaminChart(dataJK);
+            drawUsiaKategoriChart(dataUsia);
+            drawKunjunganChart(dataKunjungan);
+        }
+
+        function summarizeJK(data) {
+            const counts = { 'Laki-laki': 0, 'Perempuan': 0 };
+            data.forEach(p => { if (p.jenisKelamin in counts) { counts[p.jenisKelamin]++; } });
+            return counts;
+        }
+
+        function summarizeUsia(data) {
+            const categories = {
+                'Anak-anak': 0, 'Remaja': 0, 'Dewasa': 0, 'Pra-Lansia': 0, 'Lansia': 0
+            };
+            data.forEach(p => {
+                const key = p.kategoriUsia.split(' ')[0]; 
+                if (key in categories) { categories[key]++; }
+            });
+            return categories;
+        }
+        
+        function summarizeKunjungan(data, year, month) {
+            const key = `${year}-${month}`;
+            const counts = { 'Sakit': 0, 'Sehat': 0, 'Belum Ditandai': 0 };
+            
+            data.forEach(p => {
+                const status = p.history && p.history[key] || 'None';
+                if (status === 'Sakit') {
+                    counts.Sakit++;
+                } else if (status === 'Sehat') {
+                    counts.Sehat++;
+                } else {
+                    counts['Belum Ditandai']++;
+                }
+            });
+            return counts;
+        }
+        
+        function drawJenisKelaminChart(data) {
+            if (jenisKelaminChartInstance) { jenisKelaminChartInstance.destroy(); }
+            const ctx = document.getElementById('jenisKelaminChart').getContext('2d');
+            jenisKelaminChartInstance = new Chart(ctx, {
+                type: 'doughnut', data: {
+                    labels: ['Laki-laki', 'Perempuan'],
+                    datasets: [{ 
+                        label: 'Jumlah Pasien', 
+                        data: [data['Laki-laki'], data['Perempuan']], 
+                        backgroundColor: ['#42A5F5', '#EC407A'], 
+                        hoverOffset: 8 
+                    }]
+                }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' }, title: { display: false } } }
+            });
+        }
+        
+        function drawUsiaKategoriChart(data) {
+            if (usiaKategoriChartInstance) { usiaKategoriChartInstance.destroy(); }
+            const ctx = document.getElementById('usiaKategoriChart').getContext('2d');
+            const labels = Object.keys(data);
+            const values = Object.values(data);
+            usiaKategoriChartInstance = new Chart(ctx, {
+                type: 'bar', data: {
+                    labels: labels.map(l => l.replace('-', '/')),
+                    datasets: [{
+                        label: 'Jumlah Pasien', data: values,
+                        backgroundColor: ['#36a2eb', '#4bc0c0', '#ff9f40', '#9966ff', 'var(--danger-color)'],
+                        borderRadius: 8,
+                    }]
+                }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, precision: 0 }, x: { grid: { display: false } } } }
+            });
+        }
+
+        function drawKunjunganChart(data) {
+            if (kunjunganChartInstance) { kunjunganChartInstance.destroy(); }
+            const ctx = document.getElementById('kunjunganChart').getContext('2d');
+            
+            const chartData = {
+                labels: ['Sakit', 'Sehat', 'Belum Ditandai'], 
+                datasets: [{
+                    label: 'Jumlah Pasien',
+                    data: [data.Sakit, data.Sehat, data['Belum Ditandai']],
+                    backgroundColor: ['#D32F2F', '#388E3C', '#1976D2'],
+                    hoverOffset: 8
+                }]
+            };
+
+            kunjunganChartInstance = new Chart(ctx, {
+                type: 'pie', data: chartData,
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed !== null) { label += context.parsed; }
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) + '%' : '0%';
+                                    return label + ' (' + percentage + ')';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- Inisialisasi Aplikasi (Memuat data secara Asinkron) ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Menunggu data dimuat dari Firebase sebelum me-render dashboard
+            await loadData(); 
+            populateFilters();
+            filterTable();
+            renderCharts();
+        });
+    </script>
+</body>
+</html>

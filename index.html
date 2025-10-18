@@ -207,6 +207,14 @@
                     
                 </form>
                 
+                <div class="control-panel" style="margin-top: 25px; border-top: 1px solid #CFD8DC;">
+                    <h2><i class="fas fa-bug"></i> Test Koneksi Firebase</h2>
+                    <button id="testFirebaseBtn" style="background-color: #FBC02D; color: #212121;">
+                        <i class="fas fa-wifi"></i> Coba Tambah Data Test
+                    </button>
+                    <p id="testStatusMessage" style="margin-top: 10px; font-weight: 600;"></p>
+                </div>
+                
                 <div class="control-panel">
                     <h2><i class="fas fa-cog"></i> Kontrol Data</h2>
                     <button id="clearStatusBtn" style="background-color: var(--secondary-color);">
@@ -294,7 +302,7 @@
     <script type="module">
         // Import fungsi modular dari Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
-        import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+        import { getDatabase, ref, set, get, remove } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
         
         // ====================================================================
         // === 1. KONFIGURASI FIREBASE ANDA (KUNCI YANG DIBERIKAN USER) ===
@@ -422,6 +430,39 @@
             filterTable(); 
             renderCharts();
         }
+
+        /**
+         * FUNGSI TEST KONEKSI FIREBASE (BARU)
+         */
+        async function testFirebaseConnection() {
+            const testStatusEl = document.getElementById('testStatusMessage');
+            // Membuat node test terpisah dari data pasien
+            const testRef = ref(db, 'testConnection'); 
+            const uniqueId = Date.now();
+            
+            testStatusEl.textContent = "Mencoba menulis data...";
+            testStatusEl.style.color = 'var(--secondary-color)';
+            
+            try {
+                await set(testRef, {
+                    id: uniqueId,
+                    timestamp: new Date().toISOString(),
+                    status: "Connection OK"
+                });
+
+                testStatusEl.textContent = "✅ TEST SUKSES! Data Test berhasil ditulis ke Firebase. Tombol 'Tambah Pasien' seharusnya juga bekerja.";
+                testStatusEl.style.color = 'var(--success-color)';
+                console.log("FIREBASE CONNECTION TEST SUKSES!");
+                // Hapus node test setelah 10 detik
+                setTimeout(() => { remove(testRef); }, 10000); 
+
+            } catch (error) {
+                testStatusEl.textContent = "❌ TEST GAGAL! Periksa Rules/Konfigurasi Firebase Anda (apiKey/databaseURL).";
+                testStatusEl.style.color = 'var(--danger-color)';
+                console.error("FIREBASE CONNECTION TEST FAILED. Cek konfigurasi firebaseConfig!", error);
+            }
+        }
+
 
         /**
          * FUNGSI PERBAIKAN: clearStatusForMonth
@@ -641,7 +682,7 @@
 
             if (pasienData.some(p => p.nik === nik)) {
                 console.error("Input Gagal! NIK sudah terdaftar.");
-                displayStatus("❌ Gagal: NIK sudah terdaftar.", false);
+                displayStatus("❌ Gagal: NIK sudah terdaftar. Gunakan NIK unik.", false);
                 return;
             }
             
@@ -676,7 +717,9 @@
             } catch (error) {
                 // LOGGING 3 GAGAL: Terjadi error saat operasi Firebase set()
                 console.error("❌ GAGAL MENYIMPAN! Error saat operasi Firebase set(). Cek Aturan Firebase Anda (Rules).", error);
-                displayStatus("❌ Gagal menyimpan data! Cek Console (F12) untuk detail error Firebase.", false);
+                displayStatus("❌ Gagal menyimpan data! Pastikan NIK unik dan Rules Firebase benar.", false);
+                // Kembalikan data yang gagal disimpan dari array lokal
+                pasienData.pop();
             }
         });
         // --- AKHIR FUNGSI SUBMIT ---
@@ -845,6 +888,11 @@
 
         // --- Inisialisasi Aplikasi (Memuat data secara Asinkron) ---
         document.addEventListener('DOMContentLoaded', async () => {
+            const testFirebaseBtn = document.getElementById('testFirebaseBtn');
+            if (testFirebaseBtn) {
+                testFirebaseBtn.addEventListener('click', testFirebaseConnection);
+            }
+
             // Menunggu data dimuat dari Firebase sebelum me-render dashboard
             await loadData(); 
             populateFilters();

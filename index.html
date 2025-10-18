@@ -207,7 +207,7 @@
                 
                 <div class="control-panel">
                     <h2><i class="fas fa-cog"></i> Kontrol Data</h2>
-                    <button onclick="clearStatusForMonth()" style="background-color: var(--secondary-color);">
+                    <button id="clearStatusBtn" style="background-color: var(--secondary-color);">
                         <i class="fas fa-eraser"></i> Hapus Status Kunjungan Bulan Ini
                     </button>
                     <p style="font-size: small; color: #757575; margin-top: 10px;">*Hapus Status hanya menghapus data kunjungan (Sakit/Sehat) di periode yang sedang difilter.</p>
@@ -226,7 +226,7 @@
                         <select id="filterMonth" onchange="filterTable()"></select>
                         <select id="filterYear" onchange="filterTable()"></select>
                     </div>
-                    <button onclick="deleteSelectedPasien()" id="deleteSelectedBtn" style="background-color: var(--danger-color); padding: 10px 15px; min-width: 180px;">
+                    <button id="deleteSelectedBtn" style="background-color: var(--danger-color); padding: 10px 15px; min-width: 180px;">
                         <i class="fas fa-trash-alt"></i> Hapus yang Dipilih
                     </button>
                 </div>
@@ -419,8 +419,10 @@
         async function clearStatusForMonth() {
             const currentFilterMonthYear = `${activeFilterYear}-${activeFilterMonth}`; 
             
-            // Hapus/nonaktifkan konfirmasi yang menggunakan window.confirm()
-            if (!window.confirm(`Yakin ingin MENGHAPUS status Kunjungan untuk SEMUA pasien di periode ${formatHistoryDate(currentFilterMonthYear)}? Tindakan ini tidak dapat dibatalkan.`)) {
+            // PERBAIKAN: Menggunakan konfirmasi biasa. Jika masih gagal, ganti baris ini 
+            // dengan console.log dan hapus 'if (!confirmation) return;'
+            const confirmation = window.confirm(`Yakin ingin MENGHAPUS status Kunjungan untuk SEMUA pasien di periode ${formatHistoryDate(currentFilterMonthYear)}? Tindakan ini tidak dapat dibatalkan.`);
+            if (!confirmation) {
                  return;
             }
 
@@ -436,7 +438,6 @@
             await saveData();
             const message = `${resetCount} status Kunjungan berhasil dihapus di periode ${formatHistoryDate(currentFilterMonthYear)}.`;
             console.log(message);
-            // Secara ideal, tampilkan pesan ini di UI, bukan di console.
         }
 
         function populateFilters() {
@@ -479,8 +480,10 @@
                 return;
             }
 
-            // Hapus/nonaktifkan konfirmasi yang menggunakan window.confirm()
-            if (!window.confirm(`Yakin ingin menghapus ${checkboxes.length} pasien PERMANEN? Tindakan ini tidak dapat dibatalkan.`)) {
+            // PERBAIKAN: Menggunakan konfirmasi biasa. Jika masih gagal, ganti baris ini 
+            // dengan console.log dan hapus 'if (!confirmation) return;'
+            const confirmation = window.confirm(`Yakin ingin menghapus ${checkboxes.length} pasien PERMANEN? Tindakan ini tidak dapat dibatalkan.`);
+            if (!confirmation) {
                 return;
             }
 
@@ -780,7 +783,7 @@
                         backgroundColor: ['#36a2eb', '#4bc0c0', '#ff9f40', '#9966ff', 'var(--danger-color)'],
                         borderRadius: 8,
                     }]
-                }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, precision: 0 }, x: { grid: { display: false } } } }
+                }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, precision: 0 }, x: { grid: { display: false } } }
             });
         }
 
@@ -828,6 +831,17 @@
             populateFilters();
             filterTable();
             renderCharts();
+            
+            // PERBAIKAN UTAMA: Menghubungkan tombol ke fungsinya secara eksplisit (module scope fix)
+            const clearStatusBtn = document.getElementById('clearStatusBtn');
+            const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+
+            if (clearStatusBtn) {
+                clearStatusBtn.addEventListener('click', clearStatusForMonth);
+            }
+            if (deleteSelectedBtn) {
+                deleteSelectedBtn.addEventListener('click', deleteSelectedPasien);
+            }
         });
     </script>
 </body>

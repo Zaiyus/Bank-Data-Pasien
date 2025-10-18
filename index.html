@@ -368,7 +368,7 @@
         }
         
         // ====================================================================
-        // === FUNGSI UTAMA: MENAMPILKAN STATUS VISUAL ===
+        // === FUNGSI UTAMA: MENAMPILKAN STATUS VISUAL (PENTING UNTUK DEBUG) ===
         // ====================================================================
         function displayStatus(message, isSuccess) {
             const statusEl = document.getElementById('formStatusMessage');
@@ -396,9 +396,10 @@
         // ====================================================================
         async function loadData() {
             try {
-                const snapshot = await get(pasienRef); // Menggunakan get() modular
+                const snapshot = await get(pasienRef); 
                 if (snapshot.exists()) {
                     const dataObject = snapshot.val();
+                    // Mengambil nilai-nilai objek (data pasien) menjadi array.
                     pasienData = Object.values(dataObject || {});
                     pasienData.forEach(p => p.id = parseInt(p.id)); 
                 } else {
@@ -419,13 +420,13 @@
         }
 
         // ====================================================================
-        // === 3. FUNGSI FIREBASE: SAVE DATA (Modular Async) ===
+        // === 3. FUNGSI FIREBASE: SAVE DATA (Modular Async) - PERBAIKAN DI SINI ===
         // ====================================================================
         async function saveData() {
             try {
-                // Konversi array pasienData menjadi object yang menggunakan 'id' sebagai kunci
+                // *** PERBAIKAN UTAMA: Konversi array pasienData menjadi objek dengan ID sebagai key ***
                 const dataObjectToSave = pasienData.reduce((acc, pasien) => {
-                    // Hanya simpan data jika pasien.id ada
+                    // Hanya simpan data jika pasien.id ada (seharusnya selalu ada)
                     if (pasien.id) {
                          acc[pasien.id] = pasien;
                     }
@@ -673,9 +674,6 @@
         document.getElementById('pasienForm').addEventListener('submit', async function(event) {
             event.preventDefault();
 
-            // LOGGING 1
-            console.log("LANGKAH 1: Form submission terdeteksi. Memulai validasi...");
-
             const tanggalLahir = document.getElementById('tanggalLahir').value;
             const usia = hitungUsia(tanggalLahir);
             const nik = document.getElementById('nik').value;
@@ -687,7 +685,7 @@
                 return;
             }
 
-            // Validasi NIK Duplikat: Jika NIK sudah ada di data lokal (pasienData), batalkan.
+            // Validasi NIK Duplikat
             if (pasienData.some(p => p.nik === nik)) {
                 console.error("Input Gagal! NIK sudah terdaftar.");
                 displayStatus("❌ Gagal: NIK sudah terdaftar. Gunakan NIK unik.", false);
@@ -712,21 +710,16 @@
             };
 
             pasienData.push(newPasien);
-            // LOGGING 2
-            console.log("LANGKAH 2: Data pasien baru berhasil dibuat. Mencoba menyimpan ke Firebase...");
             
             try {
-                // Mencoba menyimpan data
+                // Mencoba menyimpan data (menggunakan fungsi saveData() yang sudah diperbaiki)
                 await saveData();
-                // LOGGING 3: Sukses
-                console.log("LANGKAH 3: Pasien berhasil ditambahkan dan data disimpan.");
                 displayStatus("✅ Pasien berhasil ditambahkan!", true);
                 this.reset();
             } catch (error) {
-                // LOGGING 3 GAGAL: Terjadi error saat operasi Firebase set()
                 console.error("❌ GAGAL MENYIMPAN! Error saat operasi Firebase set(). Kemungkinan Aturan (Rules) Firebase bermasalah.", error);
                 displayStatus("❌ Gagal menyimpan data! Pastikan NIK unik dan Rules Firebase benar.", false);
-                // Kembalikan data yang gagal disimpan dari array lokal
+                // Kembalikan data yang gagal disimpan dari array lokal agar tidak tampil
                 pasienData.pop();
             }
         });

@@ -203,6 +203,8 @@
                         </select>
                     </div>
                     <button type="submit"><i class="fas fa-plus-circle"></i> Tambah Pasien</button>
+                    <p id="formStatusMessage" style="margin-top: 15px; font-weight: 700;"></p>
+                    
                 </form>
                 
                 <div class="control-panel">
@@ -358,6 +360,22 @@
         }
         
         // ====================================================================
+        // === FUNGSI UTAMA: MENAMPILKAN STATUS VISUAL ===
+        // ====================================================================
+        function displayStatus(message, isSuccess) {
+            const statusEl = document.getElementById('formStatusMessage');
+            if (!statusEl) return;
+            statusEl.textContent = message;
+            statusEl.style.color = isSuccess ? 'var(--success-color)' : 'var(--danger-color)';
+            statusEl.style.display = 'block';
+            // Sembunyikan pesan setelah 5 detik
+            setTimeout(() => {
+                statusEl.textContent = '';
+                statusEl.style.display = 'none';
+            }, 5000); 
+        }
+
+        // ====================================================================
         // === 2. FUNGSI FIREBASE: LOAD DATA (Modular Async) ===
         // ====================================================================
         async function loadData() {
@@ -365,17 +383,13 @@
                 const snapshot = await get(pasienRef); // Menggunakan get() modular
                 if (snapshot.exists()) {
                     const dataObject = snapshot.val();
-                    // Mengubah objek Firebase menjadi array (jika disimpan sebagai objek dengan key ID)
-                    // Atau hanya mengambil val() jika disimpan sebagai array. Kita gunakan Object.values() untuk robust.
                     pasienData = Object.values(dataObject || {});
-                    // Pastikan ID adalah angka untuk fungsi filter/delete
                     pasienData.forEach(p => p.id = parseInt(p.id)); 
                 } else {
                     pasienData = [];
                 }
             } catch (error) {
                 console.error("Error loading data from Firebase:", error);
-                // Menampilkan pesan error khusus (tanpa alert)
                 const header = document.querySelector('header');
                 if (header) {
                      const errorMsg = document.createElement('p');
@@ -393,34 +407,28 @@
         // ====================================================================
         async function saveData() {
             try {
-                // Konversi array pasienData menjadi objek dengan ID sebagai key untuk penyimpanan Realtime DB yang lebih efisien
                 const dataObjectToSave = pasienData.reduce((acc, pasien) => {
                     acc[pasien.id] = pasien;
                     return acc;
                 }, {});
                 
-                // set() menimpa seluruh data di node 'pasienData' dengan data terbaru.
                 await set(pasienRef, dataObjectToSave); 
             } catch (error) {
-                console.error("Error saving data to Firebase:", error);
-                // Hanya log error, tidak perlu mengganggu pengguna saat save
+                // Melempar error agar ditangkap oleh fungsi pemanggil (pasienForm submit)
+                throw error; 
             }
             
-            // Setelah save, perbarui tampilan
             populateFilters(); 
             filterTable(); 
             renderCharts();
         }
 
         /**
-         * FUNGSI DIPERBAIKI: clearStatusForMonth
-         * Menghapus window.confirm() agar fungsi dapat berjalan di lingkungan terbatas.
+         * FUNGSI PERBAIKAN: clearStatusForMonth
          */
         async function clearStatusForMonth() {
             const currentFilterMonthYear = `${activeFilterYear}-${activeFilterMonth}`; 
             
-            // PERBAIKAN: Menggunakan konfirmasi biasa. Jika masih gagal, ganti baris ini 
-            // dengan console.log dan hapus 'if (!confirmation) return;'
             const confirmation = window.confirm(`Yakin ingin MENGHAPUS status Kunjungan untuk SEMUA pasien di periode ${formatHistoryDate(currentFilterMonthYear)}? Tindakan ini tidak dapat dibatalkan.`);
             if (!confirmation) {
                  return;
@@ -436,7 +444,7 @@
             });
 
             await saveData();
-            const message = `${resetCount} status Kunjungan berhasil dihapus di periode ${formatHistoryDate(currentFilterMonthYear)}.`;
+            const message = `${resetCount} status Kunjungan di periode ${formatHistoryDate(currentFilterMonthYear)} telah DIHAPUS.`;
             console.log(message);
         }
 
@@ -470,18 +478,15 @@
         }
 
         /**
-         * FUNGSI DIPERBAIKI: deleteSelectedPasien
-         * Menghapus window.confirm() agar fungsi dapat berjalan di lingkungan terbatas.
+         * FUNGSI PERBAIKAN: deleteSelectedPasien
          */
         async function deleteSelectedPasien() {
             const checkboxes = document.querySelectorAll('.pasien-checkbox:checked');
             if (checkboxes.length === 0) {
-                console.log("Pilih setidaknya satu pasien.");
+                console.log("Pilih setidaknya satu pasien untuk dihapus.");
                 return;
             }
 
-            // PERBAIKAN: Menggunakan konfirmasi biasa. Jika masih gagal, ganti baris ini 
-            // dengan console.log dan hapus 'if (!confirmation) return;'
             const confirmation = window.confirm(`Yakin ingin menghapus ${checkboxes.length} pasien PERMANEN? Tindakan ini tidak dapat dibatalkan.`);
             if (!confirmation) {
                 return;
@@ -528,7 +533,7 @@
                 
                 const currentStatus = pasien.history && pasien.history[currentFilterMonthYear] || 'None';
                 const riwayatIndicatorCount = pasien.history ? 
-                    Object.keys(pasien.history).filter(key => pasien.history[key] !== 'None').length : 0;
+                    Object.keys(pasien.history).filter(key => key.match(/\d{4}-\d+/) && pasien.history[key] !== 'None').length : 0;
 
                 const row = tableBody.insertRow();
                 
@@ -553,7 +558,6 @@
                 selectElement.className = `status-select ${currentStatus}`;
                 selectElement.id = `status-${pasien.id}`;
                 selectElement.onchange = async function(e) {
-                    // Update status tampilan di tempat sebelum save async untuk UX yang lebih baik
                     e.target.className = `status-select ${e.target.value}`;
                     await toggleKunjunganStatus(pasien.id, e.target.value);
                 };
@@ -611,15 +615,18 @@
                     pasienData[pasienIndex].history[historyKey] = newStatus;
                 }
                 
-                // Gunakan console.log sebagai pengganti alert untuk menghindari pop-up browser
                 console.log(`Status ${pasienData[pasienIndex].namaLengkap} di periode ${formatHistoryDate(historyKey)} diubah menjadi: ${newStatus}`);
 
                 await saveData();
             }
         }
         
+        // --- FUNGSI SUBMIT FORM PASIEN YANG SUDAH DIREVISI (FINAL) ---
         document.getElementById('pasienForm').addEventListener('submit', async function(event) {
             event.preventDefault();
+
+            // LOGGING 1
+            console.log("LANGKAH 1: Form submission terdeteksi. Memulai validasi...");
 
             const tanggalLahir = document.getElementById('tanggalLahir').value;
             const usia = hitungUsia(tanggalLahir);
@@ -628,17 +635,17 @@
 
             if (usia < 0) {
                 console.error("Input Gagal! Tanggal lahir tidak valid.");
+                displayStatus("❌ Gagal: Tanggal lahir tidak valid.", false);
                 return;
             }
 
             if (pasienData.some(p => p.nik === nik)) {
                 console.error("Input Gagal! NIK sudah terdaftar.");
+                displayStatus("❌ Gagal: NIK sudah terdaftar.", false);
                 return;
             }
             
-            // Menggunakan Date.now() sebagai ID yang unik
             const uniqueId = Date.now();
-            
             const today = new Date();
             const currentMonthYear = `${today.getFullYear()}-${today.getMonth() + 1}`;
             
@@ -652,15 +659,27 @@
                 tanggalLahir: tanggalLahir,
                 usia: usia,
                 kategoriUsia: getKategoriUsia(usia),
-                // Pastikan history memiliki ID pasien agar mudah diakses di DB
                 history: (initialStatus !== 'None' ? { [currentMonthYear]: initialStatus } : {}) 
             };
 
             pasienData.push(newPasien);
-            await saveData();
-            console.log("Pasien berhasil ditambahkan.");
-            this.reset();
+            // LOGGING 2
+            console.log("LANGKAH 2: Data pasien baru berhasil dibuat. Mencoba menyimpan ke Firebase...");
+            
+            try {
+                // Mencoba menyimpan data
+                await saveData();
+                // LOGGING 3: Sukses
+                console.log("LANGKAH 3: Pasien berhasil ditambahkan dan data disimpan.");
+                displayStatus("✅ Pasien berhasil ditambahkan!", true);
+                this.reset();
+            } catch (error) {
+                // LOGGING 3 GAGAL: Terjadi error saat operasi Firebase set()
+                console.error("❌ GAGAL MENYIMPAN! Error saat operasi Firebase set(). Cek Aturan Firebase Anda (Rules).", error);
+                displayStatus("❌ Gagal menyimpan data! Cek Console (F12) untuk detail error Firebase.", false);
+            }
         });
+        // --- AKHIR FUNGSI SUBMIT ---
 
         function showHistoryModal(pasien) {
             const modal = document.getElementById('historyModal');
@@ -832,7 +851,7 @@
             filterTable();
             renderCharts();
             
-            // PERBAIKAN UTAMA: Menghubungkan tombol ke fungsinya secara eksplisit (module scope fix)
+            // PERBAIKAN PENTING: Menghubungkan tombol ke fungsinya (module scope fix)
             const clearStatusBtn = document.getElementById('clearStatusBtn');
             const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 

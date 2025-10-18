@@ -305,12 +305,12 @@
         import { getDatabase, ref, set, get, remove } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
         
         // ====================================================================
-        // === 1. KONFIGURASI FIREBASE ANDA (KUNCI YANG DIBERIKAN USER) ===
+        // === 1. KONFIGURASI FIREBASE ANDA (SUDAH DIPASTIKAN SESUAI) ===
         // ====================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyBttm1j4cKQn-TZgHZBxbFrmqx09hgFgUE",
             authDomain: "bank-data-pasien-pkm-mdh.firebaseapp.com",
-            databaseURL: "https://bank-data-pasien-pkm-mdh-default-rtdb.asia-southeast1.firebasedatabase.app", // Ditambahkan: URL Database yang benar
+            databaseURL: "https://bank-data-pasien-pkm-mdh-default-rtdb.asia-southeast1.firebasedatabase.app", 
             projectId: "bank-data-pasien-pkm-mdh",
             storageBucket: "bank-data-pasien-pkm-mdh.firebasestorage.app",
             messagingSenderId: "835248495447",
@@ -383,6 +383,14 @@
             }, 5000); 
         }
 
+        function displayTestStatus(message, isSuccess) {
+            const statusEl = document.getElementById('testStatusMessage');
+            if (!statusEl) return;
+            statusEl.textContent = message;
+            statusEl.style.color = isSuccess ? 'var(--success-color)' : 'var(--danger-color)';
+            statusEl.style.display = 'block';
+        }
+
         // ====================================================================
         // === 2. FUNGSI FIREBASE: LOAD DATA (Modular Async) ===
         // ====================================================================
@@ -415,8 +423,12 @@
         // ====================================================================
         async function saveData() {
             try {
+                // Konversi array pasienData menjadi object yang menggunakan 'id' sebagai kunci
                 const dataObjectToSave = pasienData.reduce((acc, pasien) => {
-                    acc[pasien.id] = pasien;
+                    // Hanya simpan data jika pasien.id ada
+                    if (pasien.id) {
+                         acc[pasien.id] = pasien;
+                    }
                     return acc;
                 }, {});
                 
@@ -432,16 +444,13 @@
         }
 
         /**
-         * FUNGSI TEST KONEKSI FIREBASE (BARU)
+         * FUNGSI TEST KONEKSI FIREBASE 
          */
         async function testFirebaseConnection() {
-            const testStatusEl = document.getElementById('testStatusMessage');
-            // Membuat node test terpisah dari data pasien
             const testRef = ref(db, 'testConnection'); 
             const uniqueId = Date.now();
             
-            testStatusEl.textContent = "Mencoba menulis data...";
-            testStatusEl.style.color = 'var(--secondary-color)';
+            displayTestStatus("Mencoba menulis data...", false);
             
             try {
                 await set(testRef, {
@@ -450,22 +459,20 @@
                     status: "Connection OK"
                 });
 
-                testStatusEl.textContent = "✅ TEST SUKSES! Data Test berhasil ditulis ke Firebase. Tombol 'Tambah Pasien' seharusnya juga bekerja.";
-                testStatusEl.style.color = 'var(--success-color)';
+                displayTestStatus("✅ TEST SUKSES! Data Test berhasil ditulis ke Firebase. Tombol 'Tambah Pasien' seharusnya juga bekerja.", true);
                 console.log("FIREBASE CONNECTION TEST SUKSES!");
                 // Hapus node test setelah 10 detik
                 setTimeout(() => { remove(testRef); }, 10000); 
 
             } catch (error) {
-                testStatusEl.textContent = "❌ TEST GAGAL! Periksa Rules/Konfigurasi Firebase Anda (apiKey/databaseURL).";
-                testStatusEl.style.color = 'var(--danger-color)';
+                displayTestStatus("❌ TEST GAGAL! Periksa Rules/Konfigurasi Firebase Anda (apiKey/databaseURL).", false);
                 console.error("FIREBASE CONNECTION TEST FAILED. Cek konfigurasi firebaseConfig!", error);
             }
         }
 
 
         /**
-         * FUNGSI PERBAIKAN: clearStatusForMonth
+         * FUNGSI clearStatusForMonth
          */
         async function clearStatusForMonth() {
             const currentFilterMonthYear = `${activeFilterYear}-${activeFilterMonth}`; 
@@ -519,7 +526,7 @@
         }
 
         /**
-         * FUNGSI PERBAIKAN: deleteSelectedPasien
+         * FUNGSI deleteSelectedPasien
          */
         async function deleteSelectedPasien() {
             const checkboxes = document.querySelectorAll('.pasien-checkbox:checked');
@@ -680,6 +687,7 @@
                 return;
             }
 
+            // Validasi NIK Duplikat: Jika NIK sudah ada di data lokal (pasienData), batalkan.
             if (pasienData.some(p => p.nik === nik)) {
                 console.error("Input Gagal! NIK sudah terdaftar.");
                 displayStatus("❌ Gagal: NIK sudah terdaftar. Gunakan NIK unik.", false);
@@ -716,7 +724,7 @@
                 this.reset();
             } catch (error) {
                 // LOGGING 3 GAGAL: Terjadi error saat operasi Firebase set()
-                console.error("❌ GAGAL MENYIMPAN! Error saat operasi Firebase set(). Cek Aturan Firebase Anda (Rules).", error);
+                console.error("❌ GAGAL MENYIMPAN! Error saat operasi Firebase set(). Kemungkinan Aturan (Rules) Firebase bermasalah.", error);
                 displayStatus("❌ Gagal menyimpan data! Pastikan NIK unik dan Rules Firebase benar.", false);
                 // Kembalikan data yang gagal disimpan dari array lokal
                 pasienData.pop();
@@ -899,7 +907,7 @@
             filterTable();
             renderCharts();
             
-            // PERBAIKAN PENTING: Menghubungkan tombol ke fungsinya (module scope fix)
+            // Menghubungkan tombol kontrol ke fungsinya
             const clearStatusBtn = document.getElementById('clearStatusBtn');
             const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 

@@ -401,6 +401,7 @@
                     const dataObject = snapshot.val();
                     // Mengambil nilai-nilai objek (data pasien) menjadi array.
                     pasienData = Object.values(dataObject || {});
+                    // Memastikan ID adalah integer, penting untuk konsistensi.
                     pasienData.forEach(p => p.id = parseInt(p.id)); 
                 } else {
                     pasienData = [];
@@ -424,7 +425,7 @@
         // ====================================================================
         async function saveData() {
             try {
-                // *** PERBAIKAN UTAMA: Konversi array pasienData menjadi objek dengan ID sebagai key ***
+                // Konversi array pasienData menjadi objek dengan ID sebagai key untuk penyimpanan Realtime DB yang lebih efisien
                 const dataObjectToSave = pasienData.reduce((acc, pasien) => {
                     // Hanya simpan data jika pasien.id ada (seharusnya selalu ada)
                     if (pasien.id) {
@@ -454,6 +455,7 @@
             displayTestStatus("Mencoba menulis data...", false);
             
             try {
+                // Menulis data ke node 'testConnection'
                 await set(testRef, {
                     id: uniqueId,
                     timestamp: new Date().toISOString(),
@@ -466,8 +468,8 @@
                 setTimeout(() => { remove(testRef); }, 10000); 
 
             } catch (error) {
-                displayTestStatus("❌ TEST GAGAL! Periksa Rules/Konfigurasi Firebase Anda (apiKey/databaseURL).", false);
-                console.error("FIREBASE CONNECTION TEST FAILED. Cek konfigurasi firebaseConfig!", error);
+                displayTestStatus("❌ TEST GAGAL! Periksa Rules/Konfigurasi Firebase Anda (apiKey/databaseURL). Lihat Console untuk detail error.", false);
+                console.error("FIREBASE CONNECTION TEST FAILED. Cek konfigurasi firebaseConfig atau Rules!", error);
             }
         }
 
@@ -717,8 +719,8 @@
                 displayStatus("✅ Pasien berhasil ditambahkan!", true);
                 this.reset();
             } catch (error) {
-                console.error("❌ GAGAL MENYIMPAN! Error saat operasi Firebase set(). Kemungkinan Aturan (Rules) Firebase bermasalah.", error);
-                displayStatus("❌ Gagal menyimpan data! Pastikan NIK unik dan Rules Firebase benar.", false);
+                console.error("❌ GAGAL MENYIMPAN! Error saat operasi Firebase set().", error);
+                displayStatus("❌ Gagal menyimpan data! Lihat Console (F12) untuk detail error.", false);
                 // Kembalikan data yang gagal disimpan dari array lokal agar tidak tampil
                 pasienData.pop();
             }
@@ -888,7 +890,11 @@
         }
 
         // --- Inisialisasi Aplikasi (Memuat data secara Asinkron) ---
-        document.addEventListener('DOMContentLoaded', async () => {
+        // *** PERBAIKAN: Mengikat tombol di dalam fungsi main() untuk memastikan DOM sudah siap ***
+        document.addEventListener('DOMContentLoaded', main);
+
+        async function main() {
+            // Mengikat tombol Test Firebase
             const testFirebaseBtn = document.getElementById('testFirebaseBtn');
             if (testFirebaseBtn) {
                 testFirebaseBtn.addEventListener('click', testFirebaseConnection);
@@ -896,11 +902,12 @@
 
             // Menunggu data dimuat dari Firebase sebelum me-render dashboard
             await loadData(); 
+            
             populateFilters();
             filterTable();
             renderCharts();
             
-            // Menghubungkan tombol kontrol ke fungsinya
+            // Menghubungkan tombol kontrol ke fungsinya (Pengikatan yang lebih kuat)
             const clearStatusBtn = document.getElementById('clearStatusBtn');
             const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 
@@ -910,7 +917,7 @@
             if (deleteSelectedBtn) {
                 deleteSelectedBtn.addEventListener('click', deleteSelectedPasien);
             }
-        });
+        }
     </script>
 </body>
 </html>

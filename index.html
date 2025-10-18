@@ -412,12 +412,15 @@
             renderCharts();
         }
 
+        /**
+         * FUNGSI DIPERBAIKI: clearStatusForMonth
+         * Menghapus window.confirm() agar fungsi dapat berjalan di lingkungan terbatas.
+         */
         async function clearStatusForMonth() {
             const currentFilterMonthYear = `${activeFilterYear}-${activeFilterMonth}`; 
             
-            // Mengganti confirm() dengan modal atau logika kondisional yang menghindari konfirmasi browser
-            // Karena kita tidak bisa menggunakan window.confirm(), kita asumsikan user yakin untuk tujuan demo.
-            if (!confirm(`Yakin ingin MENGHAPUS status Kunjungan untuk SEMUA pasien di periode ${formatHistoryDate(currentFilterMonthYear)}? Tindakan ini tidak dapat dibatalkan.`)) {
+            // Hapus/nonaktifkan konfirmasi yang menggunakan window.confirm()
+            if (!window.confirm(`Yakin ingin MENGHAPUS status Kunjungan untuk SEMUA pasien di periode ${formatHistoryDate(currentFilterMonthYear)}? Tindakan ini tidak dapat dibatalkan.`)) {
                  return;
             }
 
@@ -465,6 +468,10 @@
             checkboxes.forEach(cb => { cb.checked = checked; });
         }
 
+        /**
+         * FUNGSI DIPERBAIKI: deleteSelectedPasien
+         * Menghapus window.confirm() agar fungsi dapat berjalan di lingkungan terbatas.
+         */
         async function deleteSelectedPasien() {
             const checkboxes = document.querySelectorAll('.pasien-checkbox:checked');
             if (checkboxes.length === 0) {
@@ -472,7 +479,8 @@
                 return;
             }
 
-            if (!confirm(`Yakin ingin menghapus ${checkboxes.length} pasien PERMANEN? Tindakan ini tidak dapat dibatalkan.`)) {
+            // Hapus/nonaktifkan konfirmasi yang menggunakan window.confirm()
+            if (!window.confirm(`Yakin ingin menghapus ${checkboxes.length} pasien PERMANEN? Tindakan ini tidak dapat dibatalkan.`)) {
                 return;
             }
 
@@ -824,4 +832,3 @@
     </script>
 </body>
 </html>
-

@@ -9,13 +9,13 @@
     <style>
         /* CSS: Tampilan Canggih, Glassmorphism Ringan, dan Animasi */
         :root {
-            --primary-color: #00796B; /* Teal/Biru-Hijau Fresh */
-            --secondary-color: #37474F; /* Abu-abu Tua Elegan */
-            --accent-color: #26C6DA; /* Cyan Terang */
-            --danger-color: #E53935; /* Merah untuk Indikator Sakit */
-            --success-color: #4CAF50; /* Hijau untuk Indikator Sehat */
-            --background-dark: #ECEFF1; /* Latar belakang sangat terang */
-            --card-background: rgba(255, 255, 255, 0.8); /* Glassmorphism ringan */
+            --primary-color: #00796B;
+            --secondary-color: #37474F;
+            --accent-color: #26C6DA;
+            --danger-color: #E53935;
+            --success-color: #4CAF50;
+            --background-dark: #ECEFF1;
+            --card-background: rgba(255, 255, 255, 0.8);
             --glass-border: 1px solid rgba(255, 255, 255, 0.3);
             --text-color: #212121;
             --font-family: 'Poppins', sans-serif;
@@ -79,6 +79,7 @@
         }
 
         button:hover { background-color: #004D40; transform: translateY(-1px); }
+        button:disabled { background-color: #B0BEC5; cursor: not-allowed; transform: none; }
 
         .table-controls { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
         
@@ -144,6 +145,27 @@
         .close-btn:hover, .close-btn:focus { color: var(--danger-color); text-decoration: none; cursor: pointer; }
         .history-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
         .history-item:last-child { border-bottom: none; }
+        
+        #paginationControls {
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            margin-top: 15px; 
+            gap: 10px;
+        }
+        
+        #paginationControls button {
+            padding: 8px 15px;
+        }
+        
+        #prevPageBtn {
+            background-color: var(--secondary-color);
+        }
+        
+        #pageInfo {
+            font-weight: 600;
+            color: var(--text-color);
+        }
         
         @media (max-width: 1200px) {
             .main-grid { grid-template-columns: 1fr; }
@@ -252,6 +274,12 @@
                         <tbody id="dataPasienBody"></tbody>
                     </table>
                 </div>
+
+                <div id="paginationControls">
+                    <button id="prevPageBtn" onclick="prevPage()">&laquo; Sebelumnya</button>
+                    <span id="pageInfo">Halaman 1 dari 1</span>
+                    <button id="nextPageBtn" onclick="nextPage()">Berikutnya &raquo;</button>
+                </div>
             </div>
         </div>
         
@@ -295,12 +323,12 @@
         import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
         
         // ====================================================================
-        // === 1. KONFIGURASI FIREBASE ANDA (KUNCI YANG DIBERIKAN USER) ===
+        // === 1. KONFIGURASI FIREBASE ANDA ===
         // ====================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyBttm1j4cKQn-TZgHZBxbFrmqx09hgFgUE",
             authDomain: "bank-data-pasien-pkm-mdh.firebaseapp.com",
-            databaseURL: "https://bank-data-pasien-pkm-mdh-default-rtdb.asia-southeast1.firebasedatabase.app", // Ditambahkan: URL Database yang benar
+            databaseURL: "https://bank-data-pasien-pkm-mdh-default-rtdb.asia-southeast1.firebasedatabase.app", 
             projectId: "bank-data-pasien-pkm-mdh",
             storageBucket: "bank-data-pasien-pkm-mdh.firebasestorage.app",
             messagingSenderId: "835248495447",
@@ -311,7 +339,6 @@
         // Inisialisasi Firebase
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        // Node utama di Realtime Database. Sesuaikan jika Anda ingin path lain.
         const pasienRef = ref(db, 'pasienData'); 
         // ====================================================================
 
@@ -322,6 +349,15 @@
         
         let activeFilterMonth = new Date().getMonth() + 1;
         let activeFilterYear = new Date().getFullYear();
+        
+        // ====================================================================
+        // === VARIABEL PAGINATION ===
+        // ====================================================================
+        const ROWS_PER_PAGE = 20;
+        let currentPage = 1;
+        let filteredPasien = [];
+        let lastSearchVal = '';
+        // ====================================================================
 
         function hitungUsia(dobString) {
             const today = new Date();
@@ -357,25 +393,19 @@
             }
         }
         
-        // ====================================================================
-        // === 2. FUNGSI FIREBASE: LOAD DATA (Modular Async) ===
-        // ====================================================================
+        // === 2. FUNGSI FIREBASE: LOAD DATA ===
         async function loadData() {
             try {
-                const snapshot = await get(pasienRef); // Menggunakan get() modular
+                const snapshot = await get(pasienRef); 
                 if (snapshot.exists()) {
                     const dataObject = snapshot.val();
-                    // Mengubah objek Firebase menjadi array (jika disimpan sebagai objek dengan key ID)
-                    // Atau hanya mengambil val() jika disimpan sebagai array. Kita gunakan Object.values() untuk robust.
                     pasienData = Object.values(dataObject || {});
-                    // Pastikan ID adalah angka untuk fungsi filter/delete
                     pasienData.forEach(p => p.id = parseInt(p.id)); 
                 } else {
                     pasienData = [];
                 }
             } catch (error) {
                 console.error("Error loading data from Firebase:", error);
-                // Menampilkan pesan error khusus (tanpa alert)
                 const header = document.querySelector('header');
                 if (header) {
                      const errorMsg = document.createElement('p');
@@ -388,37 +418,40 @@
             }
         }
 
-        // ====================================================================
-        // === 3. FUNGSI FIREBASE: SAVE DATA (Modular Async) ===
-        // ====================================================================
+        // === 3. FUNGSI FIREBASE: SAVE DATA ===
         async function saveData() {
             try {
-                // Konversi array pasienData menjadi objek dengan ID sebagai key untuk penyimpanan Realtime DB yang lebih efisien
                 const dataObjectToSave = pasienData.reduce((acc, pasien) => {
                     acc[pasien.id] = pasien;
                     return acc;
                 }, {});
                 
-                // set() menimpa seluruh data di node 'pasienData' dengan data terbaru.
                 await set(pasienRef, dataObjectToSave); 
             } catch (error) {
                 console.error("Error saving data to Firebase:", error);
-                // Hanya log error, tidak perlu mengganggu pengguna saat save
+                alert("⚠️ GAGAL MENYIMPAN DATA! Masalah mungkin pada koneksi internet atau 'Security Rules' Firebase Anda (pastikan aturannya mengizinkan operasi 'write'). Data tidak dapat dihapus secara permanen jika penyimpanan gagal.");
             }
             
-            // Setelah save, perbarui tampilan
             populateFilters(); 
             filterTable(); 
             renderCharts();
         }
 
+        // --- MENGHAPUS STATUS KUNJUNGAN MANUAL (Tombol Reset Status) ---
         async function clearStatusForMonth() {
             const currentFilterMonthYear = `${activeFilterYear}-${activeFilterMonth}`; 
             
-            // Mengganti confirm() dengan modal atau logika kondisional yang menghindari konfirmasi browser
-            // Karena kita tidak bisa menggunakan window.confirm(), kita asumsikan user yakin untuk tujuan demo.
-            if (!confirm(`Yakin ingin MENGHAPUS status Kunjungan untuk SEMUA pasien di periode ${formatHistoryDate(currentFilterMonthYear)}? Tindakan ini tidak dapat dibatalkan.`)) {
-                 return;
+            // Konfirmasi penghapusan status
+            const confirmClear = confirm(
+                `⚠️ KONFIRMASI\n\n` +
+                `Anda akan menghapus semua status kunjungan (Sakit/Sehat) di periode:\n` +
+                `${formatHistoryDate(currentFilterMonthYear)}\n\n` +
+                `Data pasien tidak akan dihapus, hanya status kunjungannya.\n\n` +
+                `Lanjutkan?`
+            );
+            
+            if (!confirmClear) {
+                return;
             }
 
             let resetCount = 0;
@@ -431,11 +464,11 @@
             });
 
             await saveData();
-            const message = `${resetCount} status Kunjungan berhasil dihapus di periode ${formatHistoryDate(currentFilterMonthYear)}.`;
-            console.log(message);
-            // Secara ideal, tampilkan pesan ini di UI, bukan di console.
+            const message = `✅ ${resetCount} status kunjungan berhasil dihapus di periode ${formatHistoryDate(currentFilterMonthYear)}.`;
+            alert(message);
         }
 
+        // === MODIFIKASI: RENTANG TAHUN HINGGA 2040 ===
         function populateFilters() {
             const monthSelect = document.getElementById('filterMonth');
             const yearSelect = document.getElementById('filterYear');
@@ -448,8 +481,11 @@
                 });
             }
             
-            const START_YEAR = 2023; // Tahun mulai data
-            let END_YEAR = Math.max(new Date().getFullYear(), activeFilterYear, START_YEAR);
+            const START_YEAR = 2023; 
+            const CURRENT_YEAR = new Date().getFullYear();
+            const MAX_YEAR = 2040;
+            
+            let END_YEAR = Math.max(CURRENT_YEAR, activeFilterYear, START_YEAR, MAX_YEAR);
             
             yearSelect.innerHTML = '';
             for (let year = END_YEAR; year >= START_YEAR; year--) {
@@ -465,39 +501,86 @@
             checkboxes.forEach(cb => { cb.checked = checked; });
         }
 
+        // --- MENGHAPUS DATA PASIEN PERMANEN MANUAL (Tombol Hapus yang Dipilih) ---
         async function deleteSelectedPasien() {
             const checkboxes = document.querySelectorAll('.pasien-checkbox:checked');
             if (checkboxes.length === 0) {
-                console.log("Pilih setidaknya satu pasien.");
+                alert("⚠️ Pilih setidaknya satu pasien (centang kotak di sebelah kiri nama) untuk menghapus data.");
                 return;
             }
 
-            if (!confirm(`Yakin ingin menghapus ${checkboxes.length} pasien PERMANEN? Tindakan ini tidak dapat dibatalkan.`)) {
+            // Konfirmasi penghapusan
+            const confirmDelete = confirm(
+                `⚠️ PERINGATAN!\n\n` +
+                `Anda akan menghapus ${checkboxes.length} data pasien SECARA PERMANEN.\n\n` +
+                `Data yang dihapus TIDAK DAPAT dikembalikan!\n\n` +
+                `Apakah Anda yakin ingin melanjutkan?`
+            );
+            
+            if (!confirmDelete) {
                 return;
             }
 
             const idsToDelete = Array.from(checkboxes).map(cb => parseInt(cb.value));
             const initialCount = pasienData.length;
+            
             pasienData = pasienData.filter(pasien => !idsToDelete.includes(pasien.id));
             const deletedCount = initialCount - pasienData.length;
 
             if (deletedCount > 0) {
                 document.getElementById('selectAllCheckbox').checked = false;
-                await saveData(); 
-                console.log(`${deletedCount} pasien berhasil dihapus PERMANEN.`);
+                await saveData();
+                alert(`✅ Berhasil menghapus ${deletedCount} data pasien secara permanen.`);
             } else {
-                 console.log("Gagal menghapus pasien.");
+                alert("❌ Gagal menghapus pasien. Silakan coba lagi.");
+            }
+        }
+        
+        // ====================================================================
+        // === FUNGSI PAGINATION ===
+        // ====================================================================
+        function updatePaginationControls(totalItems) {
+            const totalPages = Math.ceil(totalItems / ROWS_PER_PAGE) || 1;
+            document.getElementById('pageInfo').textContent = `Halaman ${currentPage} dari ${totalPages}`;
+            document.getElementById('prevPageBtn').disabled = currentPage === 1;
+            document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+        }
+
+        window.prevPage = function() {
+            if (currentPage > 1) {
+                currentPage--;
+                filterTable(true);
             }
         }
 
-        function filterTable() {
+        window.nextPage = function() {
+            const totalPages = Math.ceil(filteredPasien.length / ROWS_PER_PAGE) || 1;
+            if (currentPage < totalPages) {
+                currentPage++;
+                filterTable(true);
+            }
+        }
+        // ====================================================================
+
+        // === MODIFIKASI: FUNGSI filterTable DENGAN PAGINATION ===
+        function filterTable(isPaginationCall = false) {
             const tableBody = document.getElementById('dataPasienBody');
             const searchVal = document.getElementById('searchInput').value.toLowerCase();
             const filterMonth = parseInt(document.getElementById('filterMonth').value);
             const filterYear = parseInt(document.getElementById('filterYear').value);
             
+            // Cek perubahan filter untuk mereset halaman
+            const isFilterChanged = activeFilterMonth !== filterMonth || 
+                                   activeFilterYear !== filterYear || 
+                                   lastSearchVal !== searchVal;
+            
             activeFilterMonth = filterMonth;
             activeFilterYear = filterYear;
+            lastSearchVal = searchVal;
+
+            if (!isPaginationCall && isFilterChanged) {
+                currentPage = 1;
+            }
 
             const currentFilterDateSpan = document.getElementById('currentFilterDate');
             currentFilterDateSpan.textContent = formatHistoryDate(`${filterYear}-${filterMonth}`);
@@ -508,16 +591,28 @@
 
             const currentFilterMonthYear = `${filterYear}-${filterMonth}`; 
 
-            // Sortir data berdasarkan nama sebelum filtering
             pasienData.sort((a, b) => a.namaLengkap.localeCompare(b.namaLengkap));
 
-            pasienData.forEach(pasien => {
+            // 1. Proses Filter (Search)
+            filteredPasien = pasienData.filter(pasien => {
                 const searchText = `${pasien.namaLengkap} ${pasien.nik} ${pasien.alamat}`.toLowerCase();
-                if (searchVal && !searchText.includes(searchVal)) { return; }
+                return !searchVal || searchText.includes(searchVal);
+            });
+            
+            // 2. Logika Pagination
+            const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+            const endIndex = startIndex + ROWS_PER_PAGE;
+            const currentData = filteredPasien.slice(startIndex, endIndex);
+
+            // 3. Perbarui Kontrol Pagination
+            updatePaginationControls(filteredPasien.length);
+
+            // 4. Render Data yang Dipotong
+            currentData.forEach(pasien => {
                 
                 const currentStatus = pasien.history && pasien.history[currentFilterMonthYear] || 'None';
                 const riwayatIndicatorCount = pasien.history ? 
-                    Object.keys(pasien.history).filter(key => pasien.history[key] !== 'None').length : 0;
+                    Object.keys(pasien.history).filter(key => key.match(/\d{4}-\d+/) && pasien.history[key] !== 'None').length : 0;
 
                 const row = tableBody.insertRow();
                 
@@ -542,7 +637,6 @@
                 selectElement.className = `status-select ${currentStatus}`;
                 selectElement.id = `status-${pasien.id}`;
                 selectElement.onchange = async function(e) {
-                    // Update status tampilan di tempat sebelum save async untuk UX yang lebih baik
                     e.target.className = `status-select ${e.target.value}`;
                     await toggleKunjunganStatus(pasien.id, e.target.value);
                 };
@@ -600,9 +694,6 @@
                     pasienData[pasienIndex].history[historyKey] = newStatus;
                 }
                 
-                // Gunakan console.log sebagai pengganti alert untuk menghindari pop-up browser
-                console.log(`Status ${pasienData[pasienIndex].namaLengkap} di periode ${formatHistoryDate(historyKey)} diubah menjadi: ${newStatus}`);
-
                 await saveData();
             }
         }
@@ -616,16 +707,15 @@
             const initialStatus = document.getElementById('statusKunjunganAwal').value;
 
             if (usia < 0) {
-                console.error("Input Gagal! Tanggal lahir tidak valid.");
+                alert("❌ Input Gagal! Tanggal lahir tidak valid.");
                 return;
             }
 
             if (pasienData.some(p => p.nik === nik)) {
-                console.error("Input Gagal! NIK sudah terdaftar.");
+                alert("❌ Input Gagal! NIK sudah terdaftar.");
                 return;
             }
             
-            // Menggunakan Date.now() sebagai ID yang unik
             const uniqueId = Date.now();
             
             const today = new Date();
@@ -641,13 +731,12 @@
                 tanggalLahir: tanggalLahir,
                 usia: usia,
                 kategoriUsia: getKategoriUsia(usia),
-                // Pastikan history memiliki ID pasien agar mudah diakses di DB
                 history: (initialStatus !== 'None' ? { [currentMonthYear]: initialStatus } : {}) 
             };
 
             pasienData.push(newPasien);
             await saveData();
-            console.log("Pasien berhasil ditambahkan.");
+            alert("✅ Pasien berhasil ditambahkan.");
             this.reset();
         });
 
@@ -813,9 +902,15 @@
             });
         }
 
-        // --- Inisialisasi Aplikasi (Memuat data secara Asinkron) ---
+        // Expose functions ke window scope agar bisa dipanggil dari HTML
+        window.deleteSelectedPasien = deleteSelectedPasien;
+        window.clearStatusForMonth = clearStatusForMonth;
+        window.toggleSelectAll = toggleSelectAll;
+        window.filterTable = filterTable;
+        window.closeModal = closeModal;
+
+        // Inisialisasi Aplikasi
         document.addEventListener('DOMContentLoaded', async () => {
-            // Menunggu data dimuat dari Firebase sebelum me-render dashboard
             await loadData(); 
             populateFilters();
             filterTable();

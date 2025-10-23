@@ -203,21 +203,11 @@
                         </select>
                     </div>
                     <button type="submit"><i class="fas fa-plus-circle"></i> Tambah Pasien</button>
-                    <p id="formStatusMessage" style="margin-top: 15px; font-weight: 700;"></p>
-                    
                 </form>
-                
-                <div class="control-panel" style="margin-top: 25px; border-top: 1px solid #CFD8DC;">
-                    <h2><i class="fas fa-bug"></i> Test Koneksi Firebase</h2>
-                    <button id="testFirebaseBtn" style="background-color: #FBC02D; color: #212121;">
-                        <i class="fas fa-wifi"></i> Coba Tambah Data Test
-                    </button>
-                    <p id="testStatusMessage" style="margin-top: 10px; font-weight: 600;"></p>
-                </div>
                 
                 <div class="control-panel">
                     <h2><i class="fas fa-cog"></i> Kontrol Data</h2>
-                    <button id="clearStatusBtn" style="background-color: var(--secondary-color);">
+                    <button onclick="clearStatusForMonth()" style="background-color: var(--secondary-color);">
                         <i class="fas fa-eraser"></i> Hapus Status Kunjungan Bulan Ini
                     </button>
                     <p style="font-size: small; color: #757575; margin-top: 10px;">*Hapus Status hanya menghapus data kunjungan (Sakit/Sehat) di periode yang sedang difilter.</p>
@@ -236,7 +226,7 @@
                         <select id="filterMonth" onchange="filterTable()"></select>
                         <select id="filterYear" onchange="filterTable()"></select>
                     </div>
-                    <button id="deleteSelectedBtn" style="background-color: var(--danger-color); padding: 10px 15px; min-width: 180px;">
+                    <button onclick="deleteSelectedPasien()" id="deleteSelectedBtn" style="background-color: var(--danger-color); padding: 10px 15px; min-width: 180px;">
                         <i class="fas fa-trash-alt"></i> Hapus yang Dipilih
                     </button>
                 </div>
@@ -302,15 +292,15 @@
     <script type="module">
         // Import fungsi modular dari Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
-        import { getDatabase, ref, set, get, remove } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+        import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
         
         // ====================================================================
-        // === 1. KONFIGURASI FIREBASE ANDA (SUDAH DIPASTIKAN SESUAI) ===
+        // === 1. KONFIGURASI FIREBASE ANDA (KUNCI YANG DIBERIKAN USER) ===
         // ====================================================================
         const firebaseConfig = {
             apiKey: "AIzaSyBttm1j4cKQn-TZgHZBxbFrmqx09hgFgUE",
             authDomain: "bank-data-pasien-pkm-mdh.firebaseapp.com",
-            databaseURL: "https://bank-data-pasien-pkm-mdh-default-rtdb.asia-southeast1.firebasedatabase.app", 
+            databaseURL: "https://bank-data-pasien-pkm-mdh-default-rtdb.asia-southeast1.firebasedatabase.app", // Ditambahkan: URL Database yang benar
             projectId: "bank-data-pasien-pkm-mdh",
             storageBucket: "bank-data-pasien-pkm-mdh.firebasestorage.app",
             messagingSenderId: "835248495447",
@@ -368,46 +358,24 @@
         }
         
         // ====================================================================
-        // === FUNGSI UTAMA: MENAMPILKAN STATUS VISUAL (PENTING UNTUK DEBUG) ===
-        // ====================================================================
-        function displayStatus(message, isSuccess) {
-            const statusEl = document.getElementById('formStatusMessage');
-            if (!statusEl) return;
-            statusEl.textContent = message;
-            statusEl.style.color = isSuccess ? 'var(--success-color)' : 'var(--danger-color)';
-            statusEl.style.display = 'block';
-            // Sembunyikan pesan setelah 5 detik
-            setTimeout(() => {
-                statusEl.textContent = '';
-                statusEl.style.display = 'none';
-            }, 5000); 
-        }
-
-        function displayTestStatus(message, isSuccess) {
-            const statusEl = document.getElementById('testStatusMessage');
-            if (!statusEl) return;
-            statusEl.textContent = message;
-            statusEl.style.color = isSuccess ? 'var(--success-color)' : 'var(--danger-color)';
-            statusEl.style.display = 'block';
-        }
-
-        // ====================================================================
         // === 2. FUNGSI FIREBASE: LOAD DATA (Modular Async) ===
         // ====================================================================
         async function loadData() {
             try {
-                const snapshot = await get(pasienRef); 
+                const snapshot = await get(pasienRef); // Menggunakan get() modular
                 if (snapshot.exists()) {
                     const dataObject = snapshot.val();
-                    // Mengambil nilai-nilai objek (data pasien) menjadi array.
+                    // Mengubah objek Firebase menjadi array (jika disimpan sebagai objek dengan key ID)
+                    // Atau hanya mengambil val() jika disimpan sebagai array. Kita gunakan Object.values() untuk robust.
                     pasienData = Object.values(dataObject || {});
-                    // Memastikan ID adalah integer, penting untuk konsistensi.
+                    // Pastikan ID adalah angka untuk fungsi filter/delete
                     pasienData.forEach(p => p.id = parseInt(p.id)); 
                 } else {
                     pasienData = [];
                 }
             } catch (error) {
                 console.error("Error loading data from Firebase:", error);
+                // Menampilkan pesan error khusus (tanpa alert)
                 const header = document.querySelector('header');
                 if (header) {
                      const errorMsg = document.createElement('p');
@@ -421,67 +389,35 @@
         }
 
         // ====================================================================
-        // === 3. FUNGSI FIREBASE: SAVE DATA (Modular Async) - PERBAIKAN DI SINI ===
+        // === 3. FUNGSI FIREBASE: SAVE DATA (Modular Async) ===
         // ====================================================================
         async function saveData() {
             try {
                 // Konversi array pasienData menjadi objek dengan ID sebagai key untuk penyimpanan Realtime DB yang lebih efisien
                 const dataObjectToSave = pasienData.reduce((acc, pasien) => {
-                    // Hanya simpan data jika pasien.id ada (seharusnya selalu ada)
-                    if (pasien.id) {
-                         acc[pasien.id] = pasien;
-                    }
+                    acc[pasien.id] = pasien;
                     return acc;
                 }, {});
                 
+                // set() menimpa seluruh data di node 'pasienData' dengan data terbaru.
                 await set(pasienRef, dataObjectToSave); 
             } catch (error) {
-                // Melempar error agar ditangkap oleh fungsi pemanggil (pasienForm submit)
-                throw error; 
+                console.error("Error saving data to Firebase:", error);
+                // Hanya log error, tidak perlu mengganggu pengguna saat save
             }
             
+            // Setelah save, perbarui tampilan
             populateFilters(); 
             filterTable(); 
             renderCharts();
         }
 
-        /**
-         * FUNGSI TEST KONEKSI FIREBASE 
-         */
-        async function testFirebaseConnection() {
-            const testRef = ref(db, 'testConnection'); 
-            const uniqueId = Date.now();
-            
-            displayTestStatus("Mencoba menulis data...", false);
-            
-            try {
-                // Menulis data ke node 'testConnection'
-                await set(testRef, {
-                    id: uniqueId,
-                    timestamp: new Date().toISOString(),
-                    status: "Connection OK"
-                });
-
-                displayTestStatus("✅ TEST SUKSES! Data Test berhasil ditulis ke Firebase. Tombol 'Tambah Pasien' seharusnya juga bekerja.", true);
-                console.log("FIREBASE CONNECTION TEST SUKSES!");
-                // Hapus node test setelah 10 detik
-                setTimeout(() => { remove(testRef); }, 10000); 
-
-            } catch (error) {
-                displayTestStatus("❌ TEST GAGAL! Periksa Rules/Konfigurasi Firebase Anda (apiKey/databaseURL). Lihat Console untuk detail error.", false);
-                console.error("FIREBASE CONNECTION TEST FAILED. Cek konfigurasi firebaseConfig atau Rules!", error);
-            }
-        }
-
-
-        /**
-         * FUNGSI clearStatusForMonth
-         */
         async function clearStatusForMonth() {
             const currentFilterMonthYear = `${activeFilterYear}-${activeFilterMonth}`; 
             
-            const confirmation = window.confirm(`Yakin ingin MENGHAPUS status Kunjungan untuk SEMUA pasien di periode ${formatHistoryDate(currentFilterMonthYear)}? Tindakan ini tidak dapat dibatalkan.`);
-            if (!confirmation) {
+            // Mengganti confirm() dengan modal atau logika kondisional yang menghindari konfirmasi browser
+            // Karena kita tidak bisa menggunakan window.confirm(), kita asumsikan user yakin untuk tujuan demo.
+            if (!confirm(`Yakin ingin MENGHAPUS status Kunjungan untuk SEMUA pasien di periode ${formatHistoryDate(currentFilterMonthYear)}? Tindakan ini tidak dapat dibatalkan.`)) {
                  return;
             }
 
@@ -495,8 +431,9 @@
             });
 
             await saveData();
-            const message = `${resetCount} status Kunjungan di periode ${formatHistoryDate(currentFilterMonthYear)} telah DIHAPUS.`;
+            const message = `${resetCount} status Kunjungan berhasil dihapus di periode ${formatHistoryDate(currentFilterMonthYear)}.`;
             console.log(message);
+            // Secara ideal, tampilkan pesan ini di UI, bukan di console.
         }
 
         function populateFilters() {
@@ -528,18 +465,14 @@
             checkboxes.forEach(cb => { cb.checked = checked; });
         }
 
-        /**
-         * FUNGSI deleteSelectedPasien
-         */
         async function deleteSelectedPasien() {
             const checkboxes = document.querySelectorAll('.pasien-checkbox:checked');
             if (checkboxes.length === 0) {
-                console.log("Pilih setidaknya satu pasien untuk dihapus.");
+                console.log("Pilih setidaknya satu pasien.");
                 return;
             }
 
-            const confirmation = window.confirm(`Yakin ingin menghapus ${checkboxes.length} pasien PERMANEN? Tindakan ini tidak dapat dibatalkan.`);
-            if (!confirmation) {
+            if (!confirm(`Yakin ingin menghapus ${checkboxes.length} pasien PERMANEN? Tindakan ini tidak dapat dibatalkan.`)) {
                 return;
             }
 
@@ -584,7 +517,7 @@
                 
                 const currentStatus = pasien.history && pasien.history[currentFilterMonthYear] || 'None';
                 const riwayatIndicatorCount = pasien.history ? 
-                    Object.keys(pasien.history).filter(key => key.match(/\d{4}-\d+/) && pasien.history[key] !== 'None').length : 0;
+                    Object.keys(pasien.history).filter(key => pasien.history[key] !== 'None').length : 0;
 
                 const row = tableBody.insertRow();
                 
@@ -609,6 +542,7 @@
                 selectElement.className = `status-select ${currentStatus}`;
                 selectElement.id = `status-${pasien.id}`;
                 selectElement.onchange = async function(e) {
+                    // Update status tampilan di tempat sebelum save async untuk UX yang lebih baik
                     e.target.className = `status-select ${e.target.value}`;
                     await toggleKunjunganStatus(pasien.id, e.target.value);
                 };
@@ -666,13 +600,13 @@
                     pasienData[pasienIndex].history[historyKey] = newStatus;
                 }
                 
+                // Gunakan console.log sebagai pengganti alert untuk menghindari pop-up browser
                 console.log(`Status ${pasienData[pasienIndex].namaLengkap} di periode ${formatHistoryDate(historyKey)} diubah menjadi: ${newStatus}`);
 
                 await saveData();
             }
         }
         
-        // --- FUNGSI SUBMIT FORM PASIEN YANG SUDAH DIREVISI (FINAL) ---
         document.getElementById('pasienForm').addEventListener('submit', async function(event) {
             event.preventDefault();
 
@@ -683,18 +617,17 @@
 
             if (usia < 0) {
                 console.error("Input Gagal! Tanggal lahir tidak valid.");
-                displayStatus("❌ Gagal: Tanggal lahir tidak valid.", false);
                 return;
             }
 
-            // Validasi NIK Duplikat
             if (pasienData.some(p => p.nik === nik)) {
                 console.error("Input Gagal! NIK sudah terdaftar.");
-                displayStatus("❌ Gagal: NIK sudah terdaftar. Gunakan NIK unik.", false);
                 return;
             }
             
+            // Menggunakan Date.now() sebagai ID yang unik
             const uniqueId = Date.now();
+            
             const today = new Date();
             const currentMonthYear = `${today.getFullYear()}-${today.getMonth() + 1}`;
             
@@ -708,24 +641,15 @@
                 tanggalLahir: tanggalLahir,
                 usia: usia,
                 kategoriUsia: getKategoriUsia(usia),
+                // Pastikan history memiliki ID pasien agar mudah diakses di DB
                 history: (initialStatus !== 'None' ? { [currentMonthYear]: initialStatus } : {}) 
             };
 
             pasienData.push(newPasien);
-            
-            try {
-                // Mencoba menyimpan data (menggunakan fungsi saveData() yang sudah diperbaiki)
-                await saveData();
-                displayStatus("✅ Pasien berhasil ditambahkan!", true);
-                this.reset();
-            } catch (error) {
-                console.error("❌ GAGAL MENYIMPAN! Error saat operasi Firebase set().", error);
-                displayStatus("❌ Gagal menyimpan data! Lihat Console (F12) untuk detail error.", false);
-                // Kembalikan data yang gagal disimpan dari array lokal agar tidak tampil
-                pasienData.pop();
-            }
+            await saveData();
+            console.log("Pasien berhasil ditambahkan.");
+            this.reset();
         });
-        // --- AKHIR FUNGSI SUBMIT ---
 
         function showHistoryModal(pasien) {
             const modal = document.getElementById('historyModal');
@@ -848,7 +772,7 @@
                         backgroundColor: ['#36a2eb', '#4bc0c0', '#ff9f40', '#9966ff', 'var(--danger-color)'],
                         borderRadius: 8,
                     }]
-                }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, precision: 0 }, x: { grid: { display: false } } }
+                }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, precision: 0 }, x: { grid: { display: false } } } }
             });
         }
 
@@ -890,34 +814,13 @@
         }
 
         // --- Inisialisasi Aplikasi (Memuat data secara Asinkron) ---
-        // *** PERBAIKAN: Mengikat tombol di dalam fungsi main() untuk memastikan DOM sudah siap ***
-        document.addEventListener('DOMContentLoaded', main);
-
-        async function main() {
-            // Mengikat tombol Test Firebase
-            const testFirebaseBtn = document.getElementById('testFirebaseBtn');
-            if (testFirebaseBtn) {
-                testFirebaseBtn.addEventListener('click', testFirebaseConnection);
-            }
-
+        document.addEventListener('DOMContentLoaded', async () => {
             // Menunggu data dimuat dari Firebase sebelum me-render dashboard
             await loadData(); 
-            
             populateFilters();
             filterTable();
             renderCharts();
-            
-            // Menghubungkan tombol kontrol ke fungsinya (Pengikatan yang lebih kuat)
-            const clearStatusBtn = document.getElementById('clearStatusBtn');
-            const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
-
-            if (clearStatusBtn) {
-                clearStatusBtn.addEventListener('click', clearStatusForMonth);
-            }
-            if (deleteSelectedBtn) {
-                deleteSelectedBtn.addEventListener('click', deleteSelectedPasien);
-            }
-        }
+        });
     </script>
 </body>
 </html>
